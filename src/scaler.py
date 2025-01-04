@@ -49,6 +49,29 @@ class Scaler:
 
 
     @staticmethod
+    def descale_longitudes(lons: np.ndarray) -> np.ndarray:
+        return Scaler.__min_max_descaling(lons, min=Scaler.LON_MIN, max=Scaler.LON_MAX)
+    
+
+    @staticmethod
+    def descale_latitudes(lats: np.ndarray) -> np.ndarray:
+        return Scaler.__min_max_descaling(lats, min=Scaler.LAT_MIN, max=Scaler.LAT_MAX)
+    
+
+    @staticmethod
+    def descale_years(years: np.ndarray) -> np.ndarray:
+        return Scaler.__min_max_descaling(years, min=Scaler.YEAR_MIN, max=Scaler.YEAR_MAX)
+    
+
+    @staticmethod
+    def descale_preds(preds: dict[str, np.ndarray]) -> dict[str, np.ndarray]:
+        year = Scaler.descale_years(preds["year"])
+        lat = Scaler.descale_latitudes(preds["lat"])
+        lon = Scaler.descale_longitudes(preds["lon"])
+        return {"year": year, "lat": lat, "lon": lon}
+
+
+    @staticmethod
     def __min_max_scaling(data: np.ndarray, min=0, max=1) -> np.ndarray:
         """
         Generic function to scale data in a known range to [0, 1].
@@ -71,4 +94,9 @@ class Scaler:
                 Scaled data.
         """
         return (data - min) / (max - min)
+    
+
+    @staticmethod
+    def __min_max_descaling(scaled_data: np.ndarray, min=0, max=1) -> np.ndarray:
+        return scaled_data * (max - min) + min
 

@@ -15,10 +15,11 @@ class DataLoader:
 
     def __init__(self, data_path: str):
         self.data_path = pathlib.Path(data_path)
+        self.__consolidate_metadata()
         self.df = pl.read_csv(self.data_path / "metadata.csv")
 
 
-    def dataset(self, target_size=(224, 224), batch_size=32, scaling=True) -> tf.data.Dataset:
+    def dataset(self, target_size=(224, 224), batch_size=32, scaling=True, train_test_split=0.8) -> tf.data.Dataset:
         """
         Gets TensorFlow Dataset to train model.
         This loads the data in batches, allowing for a large dataset
@@ -34,13 +35,22 @@ class DataLoader:
             scaling : bool, default=True
                 Whether or not to scale coordinates.
                 Uses min-max scaling.
+            
+            train_test_split : int, default=0.8
+                Ratio of samples to be used for training.
+                The rest are used for testing.
         Returns:
             tf.data.Dataset:
                 Dataset to be used in training.
+            tf.data.Dataset:
+                Dataset to be used in testing.
         """
         # Clean-up dataset
         self.df = self.__filter_out_gifs(self.df)
         self.df = self.__filter_out_non_existent_files(self.df)
+
+        # Shuffle dataset for randomness
+        self.df = self.df.sample(fraction=1, shuffle=True)
 
         paths: pl.Series = str(self.data_path) + "/" + self.df["year"].cast(pl.String) 
         paths += "/" + self.df["id"].cast(pl.String) + ".jpg"
@@ -56,15 +66,28 @@ class DataLoader:
             lons = self.df["longitude"].to_numpy()
 
         dataset = tf.data.Dataset.from_tensor_slices((paths, years, lats, lons))
+
+        # Named function to avoid warning
+        # because tensorflow takes issue with lambda functions here
+        def load_lambda(path, year, lat, lon):
+            return DataLoader.load_image_and_labels(path, year, lat, lon, image_shape=target_size)
+        
         dataset = dataset.map(
-            lambda path, year, lat, lon: DataLoader.load_image_and_labels(path, year, lat, lon, image_shape=target_size)
+            load_lambda
         )
 
-        dataset = dataset.shuffle(buffer_size=len(paths)).batch(batch_size).prefetch(tf.data.AUTOTUNE)
-        return dataset
+        dataset = dataset.shuffle(buffer_size=len(paths)) \
+            .batch(batch_size).prefetch(tf.data.AUTOTUNE)
+        
+        dataset_size = len(self.df)
+        train_size = int(dataset_size * train_test_split)
+
+        train_dataset = dataset.take(train_size)
+        test_dataset = dataset.skip(train_size)
+        return train_dataset, test_dataset
 
 
-    def consolidate_metadata(self):
+    def __consolidate_metadata(self):
         metadata_df = self.__load_all_metadata(self.data_path)
         metadata_df.write_csv(self.data_path / "metadata.csv")
 
@@ -73,7 +96,7 @@ class DataLoader:
     def load_image_and_labels(path: str, year: int, lat: float, lon: float, image_shape=(224, 224)):
         img = tf.io.read_file(path)
         img = tf.image.decode_jpeg(img, channels=3)
-        img = tf.image.resize(img, image_shape) / 255.0
+        img = tf.image.resize(img, image_shape)
         return img, {
             "year": year,
             "lat": lat,
