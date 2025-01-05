@@ -5,12 +5,11 @@ from PIL import Image
 import numpy as np
 from scaler import Scaler
 import plotly.graph_objects as go
-import polars as pl
-import plotly.express as px
 
 
+MODEL_NAME = "res_net"
 MODEL_DIR = pathlib.Path("models")
-MODEL_PATH = MODEL_DIR / "dummy_model.keras"
+MODEL_PATH = MODEL_DIR / f"{MODEL_NAME}.keras"
 
 
 def main():
@@ -28,10 +27,12 @@ def main():
 
         scaled_pred = model.predict(arr)
         pred = Scaler.descale_preds(scaled_pred)
-        pred
 
-        latitude = -31
-        longitude = -50
+        st.markdown(f"Predicted year: {round(pred["year"][0][0])}")
+        st.markdown(f"Predicted location: ({pred["lat"][0][0]}, {pred["lon"][0][0]})")
+
+        latitude = pred["lat"][0][0]
+        longitude = pred["lon"][0][0]
 
         fig = go.Figure(go.Scattermapbox(
             lat=[latitude],

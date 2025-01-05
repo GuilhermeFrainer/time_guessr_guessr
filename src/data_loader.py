@@ -73,7 +73,9 @@ class DataLoader:
             return DataLoader.load_image_and_labels(path, year, lat, lon, image_shape=target_size)
         
         dataset = dataset.map(
-            load_lambda
+            load_lambda,
+            deterministic=False,
+            num_parallel_calls=tf.data.AUTOTUNE
         )
 
         dataset = dataset.shuffle(buffer_size=len(paths)) \
